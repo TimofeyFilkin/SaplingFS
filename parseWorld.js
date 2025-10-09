@@ -5,6 +5,8 @@ const nbt = require("nbt");
 const unzip = promisify(zlib.unzip);
 const deflate = promisify(zlib.deflate);
 
+const Vector = require("./Vector.js");
+
 /**
  * Extracts block arrays from a region (.mca) file.
  *
@@ -12,13 +14,14 @@ const deflate = promisify(zlib.deflate);
  * @param {[[[string]]]} blocks - Array to write to
  * @param {number} rx - Region file X coordinate
  * @param {number} rz - Region file Z coordinate
- * @param {array} bounds - Coordinate boundaries of "blocks" array
+ * @param {[Vector, Vector]} bounds - Relative boundaries of "blocks" array
  *
  * @return {[[[string]]]} Contents of `blocks` after modification
  */
 async function regionToBlocks (r, blocks, rx, rz, bounds) {
 
-  const [X_MIN, Y_MIN, Z_MIN, X_MAX, Y_MAX, Z_MAX] = bounds;
+  const [X_MIN, Y_MIN, Z_MIN] = bounds[0].toArray();
+  const [X_MAX, Y_MAX, Z_MAX] = bounds[1].toArray();
 
   for (let i = 0; i < 1024; i ++) {
 
@@ -92,13 +95,14 @@ async function regionToBlocks (r, blocks, rx, rz, bounds) {
  * @param {Uint8Array} r - Region file byte buffer
  * @param {number} rx - Region file X coordinate
  * @param {number} rz - Region file Z coordinate
- * @param {array} bounds - Coordinate boundaries of "blocks" array
+ * @param {[Vector, Vector]} bounds - Relative boundaries of "blocks" array
  *
  * @return {Uint8Array} Contents of `r` after modification
  */
 async function blocksToRegion (blocks, r, rx, rz, bounds) {
 
-  const [X_MIN, Y_MIN, Z_MIN, X_MAX, Y_MAX, Z_MAX] = bounds;
+  const [X_MIN, Y_MIN, Z_MIN] = bounds[0].toArray();
+  const [X_MAX, Y_MAX, Z_MAX] = bounds[1].toArray();
 
   for (let i = 0; i < 1024; i ++) {
 
@@ -214,11 +218,12 @@ const regionFileCache = {};
  *
  * @param {string} worldPath - Path to the Minecraft world directory
  * @param {function} callback - Function to call, passed a region byte buffer and its coordinates
- * @param {array} bounds - Coordinate boundaries of "blocks" array
+ * @param {[Vector, Vector]} bounds - Relative boundaries of "blocks" array
  */
 async function forRegion (worldPath, callback, bounds) {
 
-  const [X_MIN, Y_MIN, Z_MIN, X_MAX, Y_MAX, Z_MAX] = bounds;
+  const [X_MIN, Y_MIN, Z_MIN] = bounds[0].toArray();
+  const [X_MAX, Y_MAX, Z_MAX] = bounds[1].toArray();
 
   for (let rx = Math.floor(X_MIN / (16 * 32)); rx < Math.ceil(X_MAX / (16 * 32)); rx ++) {
     for (let rz = Math.floor(Z_MIN / (16 * 32)); rz < Math.ceil(Z_MAX / (16 * 32)); rz ++) {

@@ -5,6 +5,7 @@ const clipboard = require("clipboardy");
 
 const world = require("./parseWorld.js");
 const buildFileList = require("./buildFileList.js");
+const Vector = require("./Vector.js");
 
 // Read command-line parameters
 const worldName = process.argv[2];
@@ -26,7 +27,7 @@ if (fs.existsSync(worldName) && fs.lstatSync(worldName).isDirectory()) {
 const fileList = buildFileList("/home/p2r3/");
 console.log(`Found ${fileList.length} files`);
 
-let nodes = [[0, 32, 0]]; // Open nodes
+let nodes = [new Vector(0, 32, 0)]; // Open nodes
 const mapping = {}; // Closed nodes (linked to files)
 let trees = [];
 
@@ -35,6 +36,8 @@ let lastParent = "";
 
 const parentDepth = 3;
 
+let mins = new Vector(0, 0, 0);
+let maxs = new Vector(0, 0, 0);
 let min_x = 0, max_x = 0, min_z = 0, max_z = 0;
 
 const debugPalette = [
@@ -62,18 +65,18 @@ let suppressDirection = Math.floor(Math.random() * 4);
 
 while (fileList.length > 0 && nodes.length > 0) {
 
-  let [x, y, z] = nodes.shift();
-  const key = `${x},${y},${z}`;
+  const pos = nodes.shift();
+  const key = pos.toString();
 
   if (key in mapping) {
     if (nodes.length === 0) {
-      let cx, cy, cz;
+      const rand = new Vector();
       do {
-        cx = Math.floor(Math.random() * (max_x - min_x)) + min_x;
-        cz = Math.floor(Math.random() * (max_z - min_z)) + min_z;
-        cy = Math.floor(Math.random() * 64);
-      } while (`${cx},${cy},${cz}` in mapping);
-      nodes.push([cx, cy, cz]);
+        rand.x = Math.floor(Math.random() * (maxs.x - mins.x)) + mins.x;
+        rand.z = Math.floor(Math.random() * (maxs.z - maxs.z)) + mins.z;
+        rand.y = Math.floor(Math.random() * 64);
+      } while (rand.toString() in mapping);
+      nodes.push(rand);
     }
     continue;
   }
@@ -96,31 +99,46 @@ while (fileList.length > 0 && nodes.length > 0) {
     terrainGroup ++;
 
     for (const tree of trees) {
-      const { x, z, files } = tree;
-      const candidates = Object.values(mapping).filter(c => c.x === x && c.z === z);
-      candidates.sort((a, b) => b.y - a.y);
-      const y = candidates[0].y + 1;
+
+      const candidates = Object.values(mapping).filter(c => (
+        c.file.path.split(path.sep).slice(0, -1).slice(0, parentDepth + 1).join(path.sep) === lastParent &&
+        c.pos.x === tree.pos.x &&
+        c.pos.z === tree.pos.z
+      ));
+      candidates.sort((a, b) => b.pos.y - a.pos.y);
+      tree.pos.y = candidates[0].pos.y + 1;
+
+      // Tree stump
       for (let i = 0; i < 5; i ++) {
-        mapping[`${x},${y + i},${z}`] = { x, y: y + i, z, file: files.pop(), block: "oak_log", valid: true };
+        const target = tree.pos.add(0, i, 0);
+        mapping[target.toArray()] = { pos: target, file: tree.files.pop(), block: "oak_log", valid: true }
       }
+      // Bottom leaf layer
       for (let i = 0; i < 2; i ++) {
         for (let j = -2; j <= 2; j ++) {
           for (let k = -2; k <= 2; k ++) {
             if (j === 0 && k === 0) continue;
-            mapping[`${x + j},${y + i + 2},${z + k}`] = { x: x + j, y: y + i + 2, z: z + k, file: files.pop(), block: "oak_leaves", valid: true };
+            if (i === 1 && Math.abs(j) === 2 && Math.abs(k) === 2) continue;
+            const target = tree.pos.add(j, i + 2, k);
+            mapping[target.toString()] = { pos: target, file: tree.files.pop(), block: "oak_leaves", valid: true };
           }
         }
       }
+      // Top leaf layer
       for (let i = 0; i < 2; i ++) {
         for (let j = -1; j <= 1; j ++) {
           for (let k = -1; k <= 1; k ++) {
             if (i === 0 && j === 0 && k === 0) continue;
-            mapping[`${x + j},${y + i + 4},${z + k}`] = { x: x + j, y: y + i + 4, z: z + k, file: files.pop(), block: "oak_leaves", valid: true };
+            if (i === 1 && j !== 0 && k !== 0) continue;
+            const target = tree.pos.add(j, i + 4, k);
+            mapping[target.toString()] = { pos: target, file: tree.files.pop(), block: "oak_leaves", valid: true };
           }
         }
       }
+
     }
     trees = [];
+
   }
   lastParent = shortParent;
 
@@ -130,21 +148,27 @@ while (fileList.length > 0 && nodes.length > 0) {
   } else {
     block = "grass_block";
   }
-  mapping[key] = { x, y, z, file, block, valid: true };
+  mapping[key] = { pos, file, block, valid: true };
 
-  if (Math.random() < 0.05) nodes.push([x, y + 1, z]);
-  if (y > -64 && Math.random() < 0.05) nodes.push([x, y - 1, z]);
+  if (pos.x < mins.x) mins.x = pos.x;
+  if (pos.y < mins.y) mins.y = pos.y;
+  if (pos.z < mins.z) mins.z = pos.z;
+  if (pos.x > maxs.x) maxs.x = pos.x;
+  if (pos.y > maxs.y) maxs.y = pos.y;
+  if (pos.z > maxs.z) maxs.z = pos.z;
 
-  if (suppressDirection !== 0) nodes.push([x - 1, y, z]);
-  if (suppressDirection !== 1) nodes.push([x + 1, y, z]);
-  if (suppressDirection !== 2) nodes.push([x, y, z - 1]);
-  if (suppressDirection !== 3) nodes.push([x, y, z + 1]);
+  for (let i = 0; i < 4; i ++) {
+    if (suppressDirection === i) continue;
+    nodes.push(pos.shifted(i));
+  }
+  if (pos.y < 127 && Math.random() < 0.05) nodes.push(pos.add(0, 1, 0));
+  if (pos.y > -64 && Math.random() < 0.05) nodes.push(pos.add(0, -1, 0));
 
   if (Math.floor(Math.random() * 5000) === 0) {
     if (fileList.length < 62) continue;
-    if (trees.find(c => c.x === x && c.z === z)) continue;
+    if (trees.find(c => c.pos.x === pos.x && c.pos.z === pos.z)) continue;
     trees.push({
-      x, z,
+      pos: pos,
       files: fileList.slice(0, 62)
     });
     fileList.splice(0, 62);
@@ -154,6 +178,15 @@ while (fileList.length > 0 && nodes.length > 0) {
 
 console.log(`${fileList.length} files left unallocated`);
 
+// Returns number of allocated blocks adjacent to the given position
+function countAdjacent (pos) {
+  let adjacent = 0;
+  for (let i = 0; i < 6; i ++) {
+    if (pos.shifted(i).toString() in mapping) adjacent ++;
+  }
+  return adjacent;
+};
+
 async function placeFileBlocks () {
 
   let _x, _z;
@@ -161,8 +194,8 @@ async function placeFileBlocks () {
   for (const key in mapping) {
     const entry = mapping[key];
     if (!entry.valid) continue;
-    _x = Math.floor(entry.x / 16);
-    _z = Math.floor(entry.z / 16);
+    _x = Math.floor(entry.pos.x / 16);
+    _z = Math.floor(entry.pos.z / 16);
     break;
   }
 
@@ -187,28 +220,20 @@ async function placeFileBlocks () {
       validEntries --;
       continue;
     }
-    if (_x !== Math.floor(entry.x / 16)) continue;
-    if (_z !== Math.floor(entry.z / 16)) continue;
+    if (_x !== Math.floor(entry.pos.x / 16)) continue;
+    if (_z !== Math.floor(entry.pos.z / 16)) continue;
 
-    blocks[entry.x - _x * 16][entry.y + 64][entry.z - _z * 16] = entry.block;
+    const [x, y, z] = entry.pos.toArray();
+    try {
+      blocks[x - _x * 16][y + 64][z - _z * 16] = entry.block;
+    } catch (e) {
+      console.log(y);
+      throw e;
+    }
 
     entry.valid = false;
     validEntries --;
   }
-
-  const countAdjacent = function (x, y, z) {
-    let adjacent = 0;
-    x += _x * 16;
-    z += _z * 16;
-    y -= 64;
-    if (`${x + 1},${y},${z}` in mapping) adjacent ++;
-    if (`${x - 1},${y},${z}` in mapping) adjacent ++;
-    if (`${x},${y + 1},${z}` in mapping) adjacent ++;
-    if (`${x},${y - 1},${z}` in mapping) adjacent ++;
-    if (`${x},${y},${z + 1}` in mapping) adjacent ++;
-    if (`${x},${y},${z - 1}` in mapping) adjacent ++;
-    return adjacent;
-  };
 
   for (let x = 0; x < 16; x ++) {
     for (let y = 0; y < 128 + 64; y ++) {
@@ -218,27 +243,26 @@ async function placeFileBlocks () {
         if (blocks[x][y][z] === "oak_log") continue;
         if (blocks[x][y][z] === "oak_leaves") continue;
 
-        const adjacent = countAdjacent(x, y, z);
+        const posRelative = new Vector(x, y, z);
+        const pos = posRelative.absolute(_x, _z);
+
+        const adjacent = countAdjacent(pos);
         if (adjacent > 2) continue;
 
         const block = blocks[x][y][z];
-        const key = `${x + _x * 16},${y - 64},${z + _z * 16}`;
+        const key = pos.toString();
         blocks[x][y][z] = "air";
 
-        const directions = [
-          [1, 0],
-          [-1, 0],
-          [0, 1],
-          [0, -1]
-        ];
-
         let found = false;
-        for (const [dx, dz] of directions) {
-          const cx = x + dx, cz = z + dz;
-          if (blocks[cx]?.[y]?.[cz] === "air" && countAdjacent(cx, y, cz) > adjacent) {
-            blocks[cx][y][cz] = block;
+
+        for (let i = 0; i < 6; i ++) {
+          const curr = posRelative.shifted(i);
+          const cabs = curr.absolute(_x, _z);
+          const [cx, cy, cz] = curr.toArray();
+          if (blocks[cx]?.[cy]?.[cz] === "air" && countAdjacent(cabs) > adjacent) {
+            blocks[cx][cy][cz] = block;
             if (key in mapping) {
-              mapping[`${cx + _x * 16},${y - 64},${cz + _z * 16}`] = mapping[key];
+              mapping[cabs.toString()] = mapping[key];
               delete mapping[key];
             }
             found = true;
@@ -261,7 +285,10 @@ async function placeFileBlocks () {
     }
   }
 
-  const bounds = [_x * 16, -64, _z * 16, _x * 16 + 16, 128, _z * 16 + 16];
+  const bounds = [
+    new Vector(_x * 16, -64, _z * 16),
+    new Vector(_x * 16 + 16, 128, _z * 16 + 16),
+  ];
 
   await world.forRegion (worldPath, async function (region, rx, rz) {
     await world.blocksToRegion(blocks, region, rx, rz, bounds);

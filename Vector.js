@@ -1,0 +1,47 @@
+module.exports = class Vector {
+
+  constructor (x = 0, y = 0, z = 0) {
+    this.x = x;
+    this.y = y;
+    this.z = z;
+  }
+
+  toArray () {
+    return [this.x, this.y, this.z];
+  }
+  toString () {
+    return `${this.x},${this.y},${this.z}`;
+  }
+
+  add (other, y = null, z = null) {
+    if (y !== null && z !== null) {
+      return new Vector(this.x + other, this.y + y, this.z + z);
+    }
+    return new Vector(this.x + other.x, this.y + other.y, this.z + other.z);
+  }
+  sub (other, y = null, z = null) {
+    if (y !== null && z !== null) {
+      return new Vector(this.x - other, this.y - y, this.z - z);
+    }
+    return new Vector(this.x - other.x, this.y - other.y, this.z - other.z);
+  }
+
+  static DIRECTIONS = [
+    new Vector(1, 0, 0),
+    new Vector(-1, 0, 0),
+    new Vector(0, 0, 1),
+    new Vector(0, 0, -1),
+    new Vector(0, 1, 0),
+    new Vector(0, -1, 0)
+  ];
+
+  // Shift by one unit in each of six directions
+  shifted (dir) {
+    return this.add(Vector.DIRECTIONS[dir]);
+  }
+  // Convert from relative chunk coordinates to absolute coordinates
+  absolute (_x, _z) {
+    return this.add(_x * 16, -64, _z * 16);
+  }
+
+}
