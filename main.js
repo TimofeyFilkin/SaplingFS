@@ -351,6 +351,92 @@ await Promise.all(regionWritePromises);
 
 console.log("\nChunk generation finished");
 
+/**
+ * Uses an implementation of 3D DDA to cast a ray that hits
+ * the first mapped block.
+ *
+ * @param {Vector} pos - Starting position of the ray
+ * @param {Vector} fvec - Ray direction (must be normalized)
+ * @param {number} [range=50] – Maximum distance to search
+ *
+ * @returns {Object|null} – `mapping` entry or null if nothing was hit
+ */
+function raycast (pos, fvec, range = 50) {
+
+  // Set the starting voxel
+  let voxelX = Math.floor(pos.x);
+  let voxelY = Math.floor(pos.y);
+  let voxelZ = Math.floor(pos.z);
+
+  // Calculate step direction for each axis
+  const stepX = fvec.x > 0 ?  1 : fvec.x < 0 ? -1 : 0;
+  const stepY = fvec.y > 0 ?  1 : fvec.y < 0 ? -1 : 0;
+  const stepZ = fvec.z > 0 ?  1 : fvec.z < 0 ? -1 : 0;
+
+  // Distance along the ray to cross one voxel in each axis
+  const tDeltaX = fvec.x !== 0 ? Math.abs(1 / fvec.x) : Infinity;
+  const tDeltaY = fvec.y !== 0 ? Math.abs(1 / fvec.y) : Infinity;
+  const tDeltaZ = fvec.z !== 0 ? Math.abs(1 / fvec.z) : Infinity;
+
+  // Distance from ray start to first voxel boundary on each axis
+  const nextBoundaryX = stepX > 0 ? voxelX + 1 : voxelX;
+  const nextBoundaryY = stepY > 0 ? voxelY + 1 : voxelY;
+  const nextBoundaryZ = stepZ > 0 ? voxelZ + 1 : voxelZ;
+  let tMaxX = fvec.x !== 0 ? (nextBoundaryX - pos.x) / fvec.x : Infinity;
+  let tMaxY = fvec.y !== 0 ? (nextBoundaryY - pos.y) / fvec.y : Infinity;
+  let tMaxZ = fvec.z !== 0 ? (nextBoundaryZ - pos.z) / fvec.z : Infinity;
+
+  // Iterate until we hit a block or exceed range
+  let distance = 0;
+  while (distance <= range) {
+
+    // Check for intersection with a mapped block
+    const key = `${voxelX},${voxelY},${voxelZ}`;
+    if (key in mapping) return mapping[key];
+
+    // Choose the smallest tMax to step to the next voxel
+    if (tMaxX < tMaxY) {
+      if (tMaxX < tMaxZ) {
+        voxelX += stepX;
+        distance = tMaxX;
+        tMaxX += tDeltaX;
+      } else {
+        voxelZ += stepZ;
+        distance = tMaxZ;
+        tMaxZ += tDeltaZ;
+      }
+    } else {
+      if (tMaxY < tMaxZ) {
+        voxelY += stepY;
+        distance = tMaxY;
+        tMaxY += tDeltaY;
+      } else {
+        voxelZ += stepZ;
+        distance = tMaxZ;
+        tMaxZ += tDeltaZ;
+      }
+    }
+
+  }
+
+  return null;
+}
+
+// Returns a human-readable representation of a block-file mapping
+function formatMappingString (entry) {
+
+  // Get block position
+  const positionString = entry.pos.toArray().join(" ");
+  // Build collapsed path
+  const pathParts = entry.file.path.split(path.sep);
+  const pathFile = pathParts.pop();
+  const pathStart = pathParts.slice(0, parentDepth + 1).join(path.sep);
+  const pathEllipses = pathParts.length > (parentDepth + 2) ? "/..." : "";
+
+  return `"${entry.block}" at (${positionString}): "${pathStart}${pathEllipses}/${pathFile}"`
+
+}
+
 console.log("Listening for clipboard changes...");
 
 let clipboardLast = "";
@@ -362,14 +448,17 @@ setInterval(async function () {
 
   if (!text.startsWith("/execute in minecraft:overworld run tp @s")) return;
 
-  const [x, y, z] = text.split("@s ")[1].split(" ").map(c => Math.floor(Number(c)));
-  const key = `${x},${y - 1},${z}`;
-  const entry = mapping[key];
+  const [x, y, z, yaw, pitch] = text.split("@s ")[1].split(" ").map(c => Number(c));
+
+  const pos = new Vector(x, y + 1.62, z); // Eye position
+  const fvec = Vector.fromAngles(yaw, pitch); // Eye forward vector
+
+  const entry = raycast(pos, fvec);
 
   if (!entry) {
     console.log("No file associated with this block.");
   } else {
-    console.log(`(${x} ${y - 1} ${z}) ${entry.file.path}`);
+    console.log(formatMappingString(entry));
   }
 
 }, 200);
@@ -396,14 +485,8 @@ async function checkBlockChanges () {
 
       if (block === entry.block) continue;
 
-      const absPosString = entry.pos.toArray().join(" ");
-      const pathParts = entry.file.path.split(path.sep);
-      const pathFile = pathParts.pop();
-      const pathStart = pathParts.slice(0, parentDepth + 1).join(path.sep);
-      const pathEllipses = pathParts.length > (parentDepth + 2) ? "/..." : "";
-
-      console.log(`Removed block at (${absPosString}): "${pathStart}${pathEllipses}/${pathFile}"`);
-      console.log(` ^ Expected "${entry.block}", got "${block}"`);
+      console.log(`Removed ${formatMappingString(entry)}`);
+      console.log(` ^ Replaced by "${block}"`);
 
       const key = entry.pos.toString();
       delete mapping[key];

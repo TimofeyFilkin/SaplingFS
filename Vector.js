@@ -28,6 +28,14 @@ module.exports = class Vector {
     }
     return new Vector(this.x - other.x, this.y - other.y, this.z - other.z);
   }
+  length () {
+    return Math.sqrt(this.x * this.x + this.y * this.y + this.z * this.z);
+  }
+  normalize () {
+    const length = this.length();
+    if (length === 0) return new Vector();
+    return new Vector(this.x / length, this.y / length, this.z / length);
+  }
 
   static DIRECTIONS = [
     new Vector(1, 0, 0),
@@ -49,6 +57,25 @@ module.exports = class Vector {
   // Convert from absolute coordinates to chunk-relative coordinates
   relative (_x, _z) {
     return this.sub(_x * 16, -64, _z * 16);
+  }
+
+  // Create a forward vector from Euler angles
+  static fromAngles (yaw, pitch) {
+
+    yaw *= Math.PI / 180;
+    pitch *= Math.PI / 180;
+
+    const cosPitch = Math.cos(pitch);
+    const sinPitch = Math.sin(pitch);
+    const cosYaw = Math.cos(yaw);
+    const sinYaw = Math.sin(yaw);
+
+    const dx = cosPitch * -sinYaw;
+    const dy = -sinPitch;
+    const dz = cosPitch * cosYaw;
+
+    return new Vector(dx, dy, dz);
+
   }
 
 }
