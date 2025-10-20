@@ -52,7 +52,14 @@ async function regionToBlocks (r, blocks, rx, rz, bounds, expectHash = null) {
       if (expectHash !== null && firstChunkHash === expectHash) return null;
     }
 
-    const data = await unzip(compressedData);
+    let data;
+    try {
+      data = await unzip(compressedData);
+    } catch (e) {
+      console.warn(`Warning: Chunk (${_x} ${_z}) in r.${rx}.${rz} has likely been corrupted`);
+      console.warn(e);
+      return null;
+    }
 
     const json = await new Promise(function (resolve, reject) {
       nbt.parse(data, (err, res) => resolve(res));
@@ -153,7 +160,15 @@ async function blocksToRegion (blocks, r, rx, rz, bounds) {
 
     const length = (r[offset * 4096] << 24) + (r[offset * 4096 + 1] << 16) + (r[offset * 4096 + 2] << 8) + r[offset * 4096 + 3];
     const compressedData = r.slice(offset * 4096 + 5, offset * 4096 + 5 + length);
-    const data = await unzip(compressedData);
+
+    let data;
+    try {
+      data = await unzip(compressedData);
+    } catch (e) {
+      console.warn(`Warning: Chunk (${_x} ${_z}) in r.${rx}.${rz} has likely been corrupted`);
+      console.warn(e);
+      continue;
+    }
 
     const json = await new Promise(function (resolve, reject) {
       nbt.parse(data, (err, res) => resolve(res));

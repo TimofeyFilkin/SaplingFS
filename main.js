@@ -24,7 +24,7 @@ if (fs.existsSync(worldName) && fs.lstatSync(worldName).isDirectory()) {
 }
 
 // Build list of files from root
-const fileList = buildFileList("/home/p2r3/");
+const fileList = buildFileList("/home/p2r3");
 console.log(`Found ${fileList.length} files`);
 
 let nodes = [new Vector(0, 32, 0)]; // Open nodes
@@ -39,6 +39,11 @@ const parentDepth = 3;
 let mins = new Vector(0, 0, 0);
 let maxs = new Vector(0, 0, 0);
 let min_x = 0, max_x = 0, min_z = 0, max_z = 0;
+
+const WORLD_BOUNDS = [
+  new Vector(-32 * 14, -64, -32 * 14),
+  new Vector(32 * 14, 320, 32 * 14)
+];
 
 const debugPalette = [
   "white_wool",
@@ -116,7 +121,12 @@ while (fileList.length > 0 && nodes.length > 0) {
   const pos = nodes.shift();
   const key = pos.toString();
 
-  if (key in mapping) {
+  if (
+    key in mapping ||
+    pos.x < WORLD_BOUNDS[0].x || pos.x > WORLD_BOUNDS[1].x ||
+    pos.y < WORLD_BOUNDS[0].y || pos.y > WORLD_BOUNDS[1].y ||
+    pos.z < WORLD_BOUNDS[0].z || pos.z > WORLD_BOUNDS[1].z
+  ) {
     if (nodes.length === 0) {
       const rand = new Vector();
       do {
@@ -609,6 +619,9 @@ async function checkBlockChanges () {
 
     // Iterate over all mapped chunks within this region
     await forMappedChunks(async function (blocks, entries, _x, _z, bounds) {
+
+      // "Sleep" to allow other threads to run
+      await new Promise((resolve) => setTimeout(resolve, 10));
 
       // Check for changes in chunk hash and load data into block array
       const expectHash = chunkChecksum[`${_x},${_z}`];
