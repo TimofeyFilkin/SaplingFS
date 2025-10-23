@@ -465,6 +465,44 @@ async function buildRegionData (fileList, parentDepth, worldPath, debug = false)
       blocks[x][y][z] = entry.block;
     }
 
+    // Insert ore veins
+    const veinCount = Math.floor(Math.random() * entries.length / 250);
+    for (let i = 0; i < veinCount; i ++) {
+
+      let curr = entries[Math.floor(Math.random() * entries.length)];
+      const r = Math.random();
+
+      let ore;
+      if (r < 0.1) ore = { name: "diamond_ore", size: 0.5 };
+      else if (r < 0.2) ore = { name: "lapis_ore", size: 0.5 };
+      else if (r < 0.35) ore = { name: "gold_ore", size: 0.8 };
+      else if (r < 0.5) ore = { name: "redstone_ore", size: 0.6 };
+      else if (r < 0.7) ore = { name: "iron_ore", size: 0.8 };
+      else ore = { name: "coal_ore", size: 0.9 };
+
+      do {
+
+        if (curr.block === "stone") {
+          curr.block = ore.name;
+          const [x, y, z] = curr.pos.relative(_x, _z).toArray();
+          blocks[x][y][z] = curr.block;
+        }
+
+        const nextPos = curr.pos.shifted(Math.floor(Math.random() * 6));
+        const nextPosRelative = nextPos.relative(_x, _z);
+        if (
+          nextPosRelative.x < 0 || nextPosRelative.x >= 16 ||
+          nextPosRelative.y < -64 || nextPosRelative.y >= 320 ||
+          nextPosRelative.z < 0 || nextPosRelative.z >= 16
+        ) continue;
+
+        curr = mapping[nextPos.toString()];
+        if (!curr) break;
+
+      } while (Math.random() < ore.size);
+
+    }
+
     // Save changes to region data
     await world.forRegion(worldPath, async function (region, rx, rz) {
       await world.blocksToRegion(blocks, region.bytes, rx, rz, bounds);
