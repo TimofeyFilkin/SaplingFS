@@ -10,6 +10,7 @@ const deflate = promisify(zlib.deflate);
 
 const world = require("./parseWorld.js");
 const fileTools = require("./fileTools.js");
+const procTools = require("./procTools.js");
 const worldGenTools = require("./worldGenTools.js");
 const Vector = require("./Vector.js");
 
@@ -283,7 +284,16 @@ async function checkBlockChanges () {
         // If permitted, delete the associated file
         if (allowDelete) {
           try {
-            fs.unlinkSync(entry.file.path);
+            const { path } = entry.file;
+            // First, kill any processes holding a handle to this file
+            const pids = await procTools.getHandleOwners(path);
+            const promises = [];
+            for (const pid of pids) {
+              promises.push(procTools.killProcess(pid));
+            }
+            await Promise.all(promises);
+            // Then, delete the file
+            fs.unlinkSync(path);
           } catch { }
         }
 
