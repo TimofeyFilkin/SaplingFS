@@ -14,8 +14,8 @@ const mapping = {};
 // Absolute world boundaries (min/max vectors)
 // Blocks will not generate past this
 const WORLD_BOUNDS = [
-  new Vector(-32 * 14, -64, -32 * 14),
-  new Vector(32 * 14, 320, 32 * 14)
+  new Vector(-16 * 23, -64, -16 * 23),
+  new Vector(16 * 23, 320, 16 * 23)
 ];
 // Dynamic terrain boundaries, updated when generating terrain
 let terrainBounds = [
