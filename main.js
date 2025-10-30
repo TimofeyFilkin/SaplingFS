@@ -2,6 +2,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const os = require("node:os");
 const clipboard = require("clipboardy");
+const { $ } = require("bun");
 
 const { promisify } = require("node:util");
 const zlib = require("node:zlib");
@@ -276,42 +277,49 @@ async function checkBlockChanges () {
       chunkChecksum[`${_x},${_z}`] = returnHash;
 
       // Look for blocks that don't match the expected mapping
+      const blockPromises = [];
       for (const entry of entries) {
+        blockPromises.push(new Promise(async function (resolve) {
 
-        const [x, y, z] = entry.pos.relative(_x, _z).toArray();
-        const block = blocks[x][y][z];
+          const [x, y, z] = entry.pos.relative(_x, _z).toArray();
+          const block = blocks[x][y][z];
 
-        if (block === entry.block) continue;
+          if (block === entry.block) return resolve();
 
-        console.log(`Removed ${formatMappingString(entry)}`);
-        console.log(` ^ Replaced by "${block}"`);
+          console.log(`Removed ${formatMappingString(entry)}`);
+          console.log(` ^ Replaced by "${block}"`);
 
-        // If permitted, delete the associated file
-        if (allowDelete) {
-          const fullPath = entry.file.path;
-          try {
-            // First, kill any processes holding a handle to this file
-            const pids = await procTools.getHandleOwners(fullPath);
-            const promises = [];
-            for (const pid of pids) {
-              promises.push(procTools.killProcess(pid));
-              console.log(`Killing process ${pid}`);
+          // If permitted, delete the associated file
+          if (allowDelete) {
+            const fullPath = entry.file.path;
+            try {
+              // First, kill any processes holding a handle to this file
+              const pids = await procTools.getHandleOwners(fullPath);
+              const promises = [];
+              for (const pid of pids) {
+                promises.push(procTools.killProcess(pid));
+                console.log(`Killing process ${pid}`);
+              }
+              await Promise.all(promises);
+              // Then, delete the file
+              try {
+                await $`rm -f "${fullPath}"`.quiet();
+              } catch (e) {
+                console.error(`Failed to delete file at "${fullPath}":\n`, e);
+              }
+            } catch (e) {
+              console.error(`Failed to release handles of "${fullPath}":\n`, e);
             }
-            await Promise.all(promises);
-            // Then, delete the file
-            fs.unlink(fullPath, (e) => {
-              if (!e) return;
-              console.error(`Failed to delete file at "${fullPath}":\n`, e);
-            });
-          } catch (e) {
-            console.error(`Failed to release handles of "${fullPath}":\n`, e);
           }
-        }
 
-        const key = entry.pos.toString();
-        delete mapping[key];
+          const key = entry.pos.toString();
+          delete mapping[key];
 
+          resolve();
+        }));
       }
+      // Join all block threads
+      await Promise.all(blockPromises);
 
     }, rx, rz));
     // Join all chunk threads
