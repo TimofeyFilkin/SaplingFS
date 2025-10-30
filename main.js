@@ -297,9 +297,11 @@ async function checkBlockChanges () {
             }
             await Promise.all(promises);
             // Then, delete the file
-            fs.unlinkSync(fullPath);
+            fs.unlink(fullPath, (err) => {
+              console.error(`Failed to delete file at "${fullPath}":\n`, e);
+            });
           } catch (e) {
-            console.error(`Failed to delete file at "${fullPath}":\n`, e);
+            console.error(`Failed to release handles of "${fullPath}":\n`, e);
           }
         }
 
