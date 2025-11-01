@@ -30,9 +30,9 @@ function queryArgument (name, isFlag = true) {
 }
 
 // Read command-line parameters
-const worldName = process.argv[2];
+let worldName = process.argv[2];
 const debug = queryArgument("debug");
-const rootPath = queryArgument("path", false) || "/";
+const rootPath = queryArgument("path", false) || (process.platform === "win32" ? "C:\\" : "/");
 const parentDepth = Number(queryArgument("depth", false)) || 3;
 const timeString = (new Date()).toLocaleTimeString("en-US", { hour12: false }).slice(0, -3);
 const allowDelete = queryArgument("allow-delete", false) === timeString;
@@ -54,9 +54,14 @@ Options:
 // Find Minecraft world file path
 let worldPath;
 if (fs.existsSync(worldName) && fs.lstatSync(worldName).isDirectory()) {
-  worldPath = worldName;
+  worldPath = path.normalize(worldName);
+  worldName = worldPath.split(path.sep).pop();
 } else {
-  worldPath = `${os.homedir()}/.minecraft/saves/${worldName}`;
+  if (process.platform === "win32") {
+    worldPath = path.join(os.homedir(), `AppData\\Roaming\\.minecraft\\saves\\${worldName}`);
+  } else {
+    worldPath = path.join(os.homedir(), `.minecraft/saves/${worldName}`);
+  }
 }
 
 // Warn user *very explicitly* of the dangers of --allow-delete
