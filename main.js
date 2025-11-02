@@ -70,6 +70,16 @@ if (fs.existsSync(worldName) && fs.lstatSync(worldName).isDirectory()) {
   }
 }
 
+// Back up world data
+const backupWorldPath = path.resolve(worldPath) + "_SaplingFS_backup";
+if (!fs.existsSync(worldPath)) {
+  console.error(`World not found: "${worldPath}"`);
+  process.exit();
+} else if (!fs.existsSync(backupWorldPath)) {
+  console.log(`Creating backup of world "${worldName}"...\n`);
+  fs.cpSync(worldPath, backupWorldPath, { recursive: true });
+}
+
 // Warn user *very explicitly* of the dangers of --allow-delete
 if (allowDelete) {
   await new Promise(function (resolve) {

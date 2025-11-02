@@ -1,3 +1,5 @@
+const path = require("node:path");
+
 const Vector = require("./Vector.js");
 const world = require("./parseWorld.js");
 
@@ -503,7 +505,8 @@ async function buildRegionData (fileList, parentDepth, worldPath, debug = false)
 
     }
 
-    // Save changes to region data
+    // Use backup path to load initial region data, effectively starting fresh
+    const backupWorldPath = path.resolve(worldPath) + "_SaplingFS_backup";
     await world.forRegion(worldPath, async function (region, rx, rz) {
       await world.blocksToRegion(blocks, region.bytes, rx, rz, bounds);
     }, bounds);
