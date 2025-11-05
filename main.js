@@ -68,7 +68,7 @@ if (fs.existsSync(worldName) && fs.lstatSync(worldName).isDirectory()) {
   if (process.platform === "win32") {
     worldPath = path.join(os.homedir(), `AppData\\Roaming\\.minecraft\\saves\\${worldName}`);
   } else {
-    worldPath = path.join(os.homedir(), `.minecraft/saves/${worldName}`);
+    worldPath = path.join(`${worldName`);
   }
 }
 
